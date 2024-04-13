@@ -6,14 +6,15 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import tensorflow as tf
 from sklearn.metrics import classification_report
 from keras.models import Sequential
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten
 from keras.optimizers import Adam
 import matplotlib.pyplot as plt
+import streamlit as st
 
 
 def load_data():
     #Loading Data from csv file
-    data = pd.read_csv("dataset/kddcup99.csv")
+    data = pd.read_csv("/datasets/kddcup99.csv")
     # Removing duplicates from the dataset
     data = data.drop_duplicates()
     print("\nLoaded Data :\n------------------------------------")
@@ -30,7 +31,7 @@ def data_preprocessing(data_1):
                                     data_1['label'])
     class_mapping = {class_name: label for label, class_name in enumerate(unique_labels)}
     classes_df = pd.DataFrame(list(class_mapping.items()), columns=['attack_type', 'attack_label'])
-    classes_df.to_csv("csv_files/my_models/classes.csv")
+    classes_df.to_csv("csv_files/existing_models/classes.csv")
     labels_encoded = pd.get_dummies(data_1['label']).values
     print("labels encoded", labels_encoded)
     
@@ -49,10 +50,10 @@ def data_split(data_1, labels_encoded):
     X_data = np_data[:,0:41]
     X_data = StandardScaler().fit_transform(X_data)
     req_data = pd.DataFrame(X_data,columns=column_names[:41])
-    req_data.to_csv("csv_files/my_models/data.csv",index=False )
+    req_data.to_csv("csv_files/existing_models/data.csv",index=False )
     Y_data = np_data[:,41]
     req_data1 = pd.DataFrame(Y_data)
-    req_data1.to_csv("csv_files/my_models/labels.csv",index=False)
+    req_data1.to_csv("csv_files/existing_models/labels.csv",index=False)
     Y_data = tf.keras.utils.to_categorical(Y_data, 23)
     print(X_data.shape)
     print(Y_data.shape)
@@ -63,31 +64,15 @@ def data_split(data_1, labels_encoded):
     # Check the shapes of the resulting splits to confirm their sizes
     return X_train, X_test, Y_train, Y_test
 
-def model_building(X_train, Y_train):
-    NB_CLASSES = 23
-    # Define the model architecture
+
+    
+
+def build_model_1(input_shape, X_train, Y_train, NB_CLASSES):
     model = Sequential([
-        Dense(128,
-              name="Hidden-Layer-1",
-              activation='relu',
-              input_shape=(X_train.shape[1],)
-              ),
-        Dropout(0.5),
-        Dense(128,
-              name="Hidden-Layer-2",
-              activation='relu'
-              ),
-        Dropout(0.5),
-        Dense(
-            NB_CLASSES,
-            name="Output-layer",
-            activation='softmax'
-            )
-    
-    ])
-    
-    
-    # Compile the model_1
+         Dense(512, activation='relu', input_shape=input_shape,),
+         Dropout(0.05),
+         Dense(NB_CLASSES, activation='softmax')
+     ])
     model.compile(optimizer=Adam(learning_rate=0.001),
                   loss='categorical_crossentropy',
                   metrics=['accuracy'])
@@ -103,7 +88,85 @@ def model_building(X_train, Y_train):
     VALIDATION_SPLIT = 0.2
     # Train the model
     history = model.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
-    model.save("saved_models/my_models/model2.h5")
+    model.save("saved_models/existing_models/model1.h5")
+    return (model,history)
+
+def build_model_2(input_shape, X_train, Y_train, NB_CLASSES):
+    model = Sequential([
+         Dense(1024, activation='relu', input_shape=input_shape),
+         Dropout(0.01),
+         Dense(768, activation='relu'),
+         Dropout(0.01),
+         Dense(512, activation='relu'),
+         Dropout(0.01),
+         Dense(512, activation='relu'),
+         Dropout(0.01),
+         Dense(128, activation='relu'),
+         Dropout(0.01),
+         Dense(NB_CLASSES, activation='softmax')
+     ])
+    
+    # Summarize the model
+    model.summary()
+    VERBOSE = 1
+    
+    BATCH_SIZE = 64
+    
+    EPOCHS = 20
+    
+    VALIDATION_SPLIT = 0.2
+    # Train the model
+    history = model.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
+    model.save("saved_models/existing_models/model2.h5")
+    return (model,history)
+
+
+
+def build_model_3(input_shape, X_train, Y_train, NB_CLASSES):
+    model = Sequential([
+        Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=input_shape),
+        MaxPooling1D(pool_size=2),
+        Flatten(),
+        Dense(100, activation='relu'),
+        Dense(input_shape, activation='softmax')
+    ])
+    
+    # Summarize the model
+    model.summary()
+    VERBOSE = 1
+    
+    BATCH_SIZE = 64
+    
+    EPOCHS = 20
+    
+    VALIDATION_SPLIT = 0.2
+    # Train the model
+    history = model.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
+    model.save("saved_models/existing_models/model3.h5")
+    return (model,history)
+
+def build_model_4(input_shape, X_train, Y_train, NB_CLASSES):
+    model = Sequential([
+         Dense(512, activation='relu', input_shape=input_shape,),
+         Dropout(0.05),
+         Dense(NB_CLASSES, activation='softmax')
+     ])
+    model.compile(optimizer=Adam(learning_rate=0.001),
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    
+    # Summarize the model
+    model.summary()
+    VERBOSE = 1
+    
+    BATCH_SIZE = 64
+    
+    EPOCHS = 20
+    
+    VALIDATION_SPLIT = 0.2
+    # Train the model
+    history = model.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
+    model.save("saved_models/existing_models/model4.h5")
     return (model,history)
 
 def evaluate_model(model, history, X_test, Y_test):
@@ -126,10 +189,22 @@ def evaluate_model(model, history, X_test, Y_test):
     print(classification_report(Y_test, y_pred_classes_bin))
 
 def main():
+    st.write("Train And Deploy Existing DNNs")
+    selected_model = st.selectbox(label="Select Existing DNN",options=["DNN 1", "DNN 2", "DNN3"])
+    print(selected_model)
     data = load_data()
     data, labels_encoded = data_preprocessing(data)
     X_train, X_test, Y_train, Y_test = data_split(data, labels_encoded)
-    model, history = model_building(X_train, Y_train)
+    NB_CLASSES = 23
+    input_shape = X_train.shape[1]
+    
+    build_selected_model = {
+        1: build_model_1(input_shape, X_train, Y_train, NB_CLASSES),
+        2: build_model_2(input_shape, X_train, Y_train, NB_CLASSES),
+        3: build_model_3(input_shape, X_train, Y_train, NB_CLASSES),
+        4: build_model_4(input_shape, X_train, Y_train, NB_CLASSES)        
+    }
+    model, history = build_selected_model.get(selected_model)
     evaluate_model(model, history, X_test, Y_test)
 
 

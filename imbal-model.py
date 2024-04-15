@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import tensorflow as tf
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from keras.models import Sequential
@@ -17,16 +17,10 @@ def load_data():
     data = pd.read_csv("dataset/kddcup99.csv")
     # Removing duplicates from the dataset
     data = data.drop_duplicates()
-    print("\nLoaded Data :\n------------------------------------")
-    print(data.head())
-    print(data.shape)
-    data.shape
-    data.label.value_counts()
+    print("Data Loading Completed")
     return data
 
 
-
-# Assuming data is your DataFrame containing class labels
 def oversampling(data):
     # Count the occurrences of each class
     class_counts = defaultdict(int)
@@ -51,30 +45,26 @@ def oversampling(data):
     
     # Combine oversampled data with original data
     data_1 = pd.concat([data, oversampled_data])
-    print(data_1.shape)
-    
-    print(data_1['label'].value_counts())
-    
-    print(data_1.head())
+    print("Data Oversampling Completed")
     return data_1
 
 def data_preprocessing(data_1):
     encoder = LabelEncoder()
+    # Getting labels of classes
     unique_labels =data_1['label'].unique()
+    # Encoding 'label' column using label encoder
     data_1['label'] = encoder.fit_transform(
                                     data_1['label'])
     class_mapping = {class_name: label for label, class_name in enumerate(unique_labels)}
+    # Saving the class name and their labels to csv file. e.g {"normal" : 0}
     classes_df = pd.DataFrame(list(class_mapping.items()), columns=['attack_type', 'attack_label'])
     classes_df.to_csv("csv_files/my_models/classes.csv")
     labels_encoded = pd.get_dummies(data_1['label']).values
-    print("labels encoded", labels_encoded)
-    
+    # Encoding columns with string values using label encoder
     data_1['protocol_type'] = LabelEncoder().fit_transform(data_1['protocol_type'])
     data_1['service'] = LabelEncoder().fit_transform(data_1['service'])
     data_1['flag'] = LabelEncoder().fit_transform(data_1['flag'])
-    print("Dataset after encoding:")
-    print(data_1.head())
-    print(data_1.dtypes)
+    print("Data Preprocessing Completed")
     return data_1, labels_encoded
 
     
@@ -87,26 +77,31 @@ def data_split(data_1, labels_encoded):
     req_data.to_csv("csv_files/my_models/data.csv",index=False )
     Y_data = np_data[:,41]
     req_data1 = pd.DataFrame(Y_data)
+    # Saving actual labels to csv file.
     req_data1.to_csv("csv_files/my_models/labels.csv",index=False)
     Y_data = tf.keras.utils.to_categorical(Y_data, 23)
-    print(X_data.shape)
-    print(Y_data.shape)
-    print(labels_encoded.shape)
     # Split the preprocessed data into training and testing sets
     X_train, X_test, Y_train, Y_test = train_test_split(X_data, Y_data, test_size=0.2, random_state=42, stratify=labels_encoded)
-    
-    # Check the shapes of the resulting splits to confirm their sizes
+    print("Data Spliting Completed")
     return X_train, X_test, Y_train, Y_test
 
 
 def model_building(X_train, Y_train):
     NB_CLASSES = 23
-    # Define the model architecture
-    model_2 = Sequential([
-        Dense(128,
-              name="Hidden-Layer-1",
+    #Creating Model with Input Layer(256 neurons), 
+    #2 Hidden Layers(128 neurons) and Output Layer(23 neurons)
+    #Dropout of 0.5
+    
+    model = Sequential([
+        Dense(256,
+              name="Input-Layer-1",
               activation='relu',
               input_shape=(X_train.shape[1],)
+              ),
+        Dropout(0.5),
+        Dense(128,
+              name="Hidden-Layer-1",
+              activation='relu'
               ),
         Dropout(0.5),
         Dense(128,
@@ -122,14 +117,13 @@ def model_building(X_train, Y_train):
     
     ])
     
-    
-    # Compile the model_2
-    model_2.compile(optimizer=Adam(learning_rate=0.001),
+    #optimizer: adam, loss function: categorical crossentropy
+    model.compile(optimizer=Adam(learning_rate=0.001),
                   loss='categorical_crossentropy',
                   metrics=['accuracy'])
     
-    # Summarize the model
-    model_2.summary()
+    model.summary()
+    #Batch size 64, Epochs 20, 
     VERBOSE = 1
     
     BATCH_SIZE = 64
@@ -137,16 +131,16 @@ def model_building(X_train, Y_train):
     EPOCHS = 20
     
     VALIDATION_SPLIT = 0.2
-    # Train the model
-    history = model_2.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
-    model_2.save("saved_models/my_models/model1.h5")
-    return (model_2,history)
+    print("Model Training started")
+    history = model.fit(X_train, Y_train, validation_split=VALIDATION_SPLIT, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=VERBOSE)
+    print("Model Training Completed")
+    #Saving the model locally
+    model.save("saved_models/my_models/model1.h5")
+    return (model,history)
 
 
-# pd.DataFrame(history.history)["accuracy"].plot(figsize=(8,5))
-# plt.title("Accuracy improvements with Epoch")
-# plt.show()
 def evaluate_model(model_2, history, X_test, Y_test):
+    # Plotting Training Accuracy vs Validation Acccuracy
     plt.figure(figsize=(10, 5))
     plt.plot(history.history['accuracy'], label='Train Accuracy')
     plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
@@ -164,6 +158,9 @@ def evaluate_model(model_2, history, X_test, Y_test):
     print("Actual labels of first 5 classes",y_pred_classes[:5])
     print("Predicting first 5 classes",[np.argmax(i) for i in Y_test[:5]])
     print(classification_report(Y_test, y_pred_classes_bin))
+    accuracy = accuracy_score(Y_test, y_pred_classes_bin)
+    print("Accuracy:", accuracy)
+    print("Model Training Completed")
     
 def main():
     data = load_data()

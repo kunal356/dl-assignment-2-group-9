@@ -4,12 +4,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 import tensorflow as tf
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, f1_score, accuracy_score, confusion_matrix,precision_recall_curve, roc_curve, auc
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
-import matplotlib.pyplot as plt
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix,precision_recall_curve, roc_curve, auc 
+import matplotlib.pyplot as plt 
 import seaborn as sns
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -17,9 +16,7 @@ from sklearn.compose import ColumnTransformer
 def load_data():
     #Loading Data from csv file
     data = pd.read_csv("dataset/kddcup99.csv")
-    print("\nLoaded Data :\n------------------------------------")
-    print(data.head())
-    print(data.shape)
+    print("Data Loading Completed")
     return data
 
 
@@ -27,7 +24,6 @@ def data_preprocessing(df):
     X = df.drop('label', axis=1)
     y = df['label']
 
-    # Preprocess the dataset
     numeric_features = X.select_dtypes(include=['int64', 'float64']).columns
     categorical_features = X.select_dtypes(include=['object']).columns
 
@@ -45,7 +41,8 @@ def data_preprocessing(df):
             ('cat', categorical_transformer, categorical_features)
         ])
     X_processed = preprocessor.fit_transform(X)
-    y_masked = y.apply(lambda x: 1 if x == "normal" else 0)    
+    y_masked = y.apply(lambda x: 1 if x == "normal" else 0)
+    print("Data Preprocessing Completed")    
     return X_processed, y_masked
    
     
@@ -56,24 +53,33 @@ def data_split(X_processed, y_masked):
     ano_data.to_csv("csv_files/my_models/ano_data.csv", index=False )
     ano_classes = pd.DataFrame(y_test)
     ano_classes.to_csv("csv_files/my_models/ano_classes.csv", index=False )
+    print("Data Spliting Completed")
     return X_train, X_test, y_train, y_test
 
 def model_building(X_train, X_test):
+    # Anamoly detection using Autoencoder
+    #Creating Model with Input Layer(25 neurons), 
+    #Middle(Bottleneck) Layer which compresses to 3 neuron
+    #Hidden Layer expands it back 25 neurons
+    #Output Layer expands back to input shape(118 neurons)
+    #Dropout of 0.5
     model = Sequential()
     model.add(Dense(25, input_dim=X_train.shape[1], activation='relu'))
-    model.add(Dense(3, activation='relu')) # size to compress to
+    model.add(Dense(3, activation='relu')) 
     model.add(Dense(25, activation='relu'))
-    model.add(Dense(X_train.shape[1])) # Multiple output neurons
+    model.add(Dense(X_train.shape[1]))
     model.compile(loss='mean_squared_error', optimizer=Adam(learning_rate=0.01))
     model.summary()
-
+    print("Model Training started")
     history = model.fit(X_train, X_train,
                               epochs=50,
                               batch_size=256,
                               shuffle=True,
                               validation_data=(X_test, X_test),
                               verbose=1)
+    print("Model Training Completed")
     model.save("saved_models/my_models/model3.h5")
+    print("Model saved successfully")
     return (model,history)
 
 def evaluate_model(model, history, X_test, y_test):
@@ -82,9 +88,8 @@ def evaluate_model(model, history, X_test, y_test):
     error_df = pd.DataFrame({'reconstruction_error': mse,
                              'true_class': y_test})
     
-    # Convert the 'true_class' to binary as you did for the ROC curve
     y_true = error_df['true_class'].values
-    # You need to convert 'reconstruction_error' to binary predictions based on a threshold.
+    
     threshold = np.percentile(error_df['reconstruction_error'], 95)
     print("Threshold: ",threshold)
     y_pred = [1 if e > threshold else 0 for e in error_df['reconstruction_error'].values]
@@ -94,8 +99,6 @@ def evaluate_model(model, history, X_test, y_test):
     plt.plot(history.history["val_loss"], label="Validation Loss")
     plt.legend()
 
-    
-
     normal_error_df = error_df[error_df['true_class'] == 1]
     anomaly_error_df = error_df[error_df['true_class'] == 0]
     print("normal\n",normal_error_df)
@@ -103,8 +106,8 @@ def evaluate_model(model, history, X_test, y_test):
 
     # Histogram of reconstruction error
     plt.figure(figsize=(16, 9))
-    plt.hist(normal_error_df['reconstruction_error'], bins=50, alpha=0.7, label='Normal')
-    plt.hist(anomaly_error_df['reconstruction_error'], bins=50, alpha=0.7, label='Anomaly')
+    plt.hist(normal_error_df['reconstruction_error'],  bins=50, alpha=0.7, label='Normal')
+    plt.hist(anomaly_error_df['reconstruction_error'], range=[0, 10], bins=50, alpha=0.7, label='Anomaly')
     plt.xlabel('Reconstruction error')
     plt.ylabel('Frequency')
     plt.legend()

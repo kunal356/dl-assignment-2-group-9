@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def display_graphs(df):
+    # Taking only 1000
     df = df.sample(1000)
-    st.write(df.shape)
     all_columns_names = df.columns.to_list()
     selected_column_names = st.multiselect("Select Columns to plot", all_columns_names)
     cust_data = df[selected_column_names]
